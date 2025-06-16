@@ -12,6 +12,7 @@ This guide will help you install and configure the Gmail AutoAuth MCP server for
 ## Installation Steps
 
 1. First, create a Google Cloud Project and obtain the necessary credentials:
+
    ```
    1. Go to Google Cloud Console (https://console.cloud.google.com)
    2. Create a new project or select an existing one
@@ -26,16 +27,20 @@ This guide will help you install and configure the Gmail AutoAuth MCP server for
    ```
 
 2. Set up the configuration directory:
+
    ```bash
    mkdir -p ~/.gmail-mcp
    mv gcp-oauth.keys.json ~/.gmail-mcp/
    ```
 
 3. Run authentication:
+
    ```bash
-   npx @gongrzhe/server-gmail-autoauth-mcp auth
+   npx @observee/gmail-mcp auth
    ```
+
    This will:
+
    - Look for gcp-oauth.keys.json in current directory or ~/.gmail-mcp/
    - Copy it to ~/.gmail-mcp/ if found in current directory
    - Launch browser for Google authentication
@@ -47,9 +52,7 @@ This guide will help you install and configure the Gmail AutoAuth MCP server for
      "mcpServers": {
        "gmail": {
          "command": "npx",
-         "args": [
-           "@gongrzhe/server-gmail-autoauth-mcp"
-         ]
+         "args": ["@observee/gmail-mcp"]
        }
      }
    }
@@ -60,11 +63,13 @@ This guide will help you install and configure the Gmail AutoAuth MCP server for
 If you encounter any issues during installation:
 
 1. OAuth Keys Issues:
+
    - Verify gcp-oauth.keys.json exists in correct location
    - Check file permissions
    - Ensure keys contain valid web or installed credentials
 
 2. Authentication Errors:
+
    - Confirm Gmail API is enabled
    - For web applications, verify redirect URI configuration
    - Check port 3000 is available during authentication
@@ -87,6 +92,7 @@ If you encounter any issues during installation:
 After installation, you can perform various Gmail operations:
 
 ### Send Email
+
 ```json
 {
   "to": ["recipient@example.com"],
@@ -98,6 +104,7 @@ After installation, you can perform various Gmail operations:
 ```
 
 ### Search Emails
+
 ```json
 {
   "query": "from:sender@example.com after:2024/01/01",
@@ -106,6 +113,7 @@ After installation, you can perform various Gmail operations:
 ```
 
 ### Manage Email
+
 - Read emails by ID
 - Move emails between labels
 - Mark emails as read/unread

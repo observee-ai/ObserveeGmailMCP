@@ -6,25 +6,14 @@ import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
+import http from 'http';
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { OAuth2Client } from 'google-auth-library';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import http from 'http';
-import open from 'open';
-import os from 'os';
-import {createEmailMessage} from "./utl.js";
-import { createLabel, updateLabel, deleteLabel, listLabels, findLabelByName, getOrCreateLabel, GmailLabel } from "./label-manager.js";
+import { createLabel, deleteLabel, getOrCreateLabel, GmailLabel, listLabels, updateLabel } from "./label-manager.js";
+import { createEmailMessage } from "./utl.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Configuration paths
-const CONFIG_DIR = path.join(os.homedir(), '.gmail-mcp');
-const OAUTH_PATH = process.env.GMAIL_OAUTH_PATH || path.join(CONFIG_DIR, 'gcp-oauth.keys.json');
-const CREDENTIALS_PATH = process.env.GMAIL_CREDENTIALS_PATH || path.join(CONFIG_DIR, 'credentials.json');
 
 // Type definitions for Gmail API responses
 interface GmailMessagePart {
@@ -92,35 +81,18 @@ function extractEmailContent(messagePart: GmailMessagePart): EmailContent {
     return { text: textContent, html: htmlContent };
 }
 
+const OBSERVEE_API_ENDPOINT = "https://observeeapi-242959672448.us-central1.run.app";
+
 async function loadCredentials() {
-    try {
-        // Create config directory if it doesn't exist
-        if (!process.env.GMAIL_OAUTH_PATH && !CREDENTIALS_PATH &&!fs.existsSync(CONFIG_DIR)) {
-            fs.mkdirSync(CONFIG_DIR, { recursive: true });
-        }
+    try {;
 
-        // Check for OAuth keys in current directory first, then in config directory
-        const localOAuthPath = path.join(process.cwd(), 'gcp-oauth.keys.json');
-        let oauthPath = OAUTH_PATH;
 
-        if (fs.existsSync(localOAuthPath)) {
-            // If found in current directory, copy to config directory
-            fs.copyFileSync(localOAuthPath, OAUTH_PATH);
-            console.log('OAuth keys found in current directory, copied to global config.');
-        }
-
-        if (!fs.existsSync(OAUTH_PATH)) {
-            console.error('Error: OAuth keys file not found. Please place gcp-oauth.keys.json in current directory or', CONFIG_DIR);
-            process.exit(1);
-        }
-
-        const keysContent = JSON.parse(fs.readFileSync(OAUTH_PATH, 'utf8'));
+        const keysContent = JSON.parse('#INSERT_KEY_CONTENT_HERE');
         const keys = keysContent.installed || keysContent.web;
+        
+        const retrieveUrl = OBSERVEE_API_ENDPOINT + "/config/retrieve"
+        
 
-        if (!keys) {
-            console.error('Error: Invalid OAuth keys file format. File should contain either "installed" or "web" credentials.');
-            process.exit(1);
-        }
 
         const callback = process.argv[2] === 'auth' && process.argv[3] 
         ? process.argv[3] 
@@ -132,10 +104,26 @@ async function loadCredentials() {
             callback
         );
 
-        if (fs.existsSync(CREDENTIALS_PATH)) {
-            const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
-            oauth2Client.setCredentials(credentials);
+        const tokensResp = await fetch(retrieveUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                customer_id: "d2a949c5-aec1-45dc-81fb-e37ada127957",
+                mcp_server_name: "gmail-observee",
+                client_id: "99edf6ff-365c-4c46-9484-1dcbb5fd560c"
+            })
+        })
+
+        if (!tokensResp.ok) {
+            throw Error("Not okay response")
         }
+
+        const credentials = await tokensResp.json();
+
+        oauth2Client.setCredentials(credentials.token_json);
+
     } catch (error) {
         console.error('Error loading credentials:', error);
         process.exit(1);
@@ -153,7 +141,6 @@ async function authenticate() {
         });
 
         console.log('Please visit this URL to authenticate:', authUrl);
-        open(authUrl);
 
         server.on('request', async (req, res) => {
             if (!req.url?.startsWith('/oauth2callback')) return;
@@ -170,8 +157,23 @@ async function authenticate() {
 
             try {
                 const { tokens } = await oauth2Client.getToken(code);
+                
+                const saveEndpoint = OBSERVEE_API_ENDPOINT + "/config/save"
+                await fetch(saveEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customer_id: "d2a949c5-aec1-45dc-81fb-e37ada127957",
+                        mcp_server_name: "gmail-observee",
+                        token_json: tokens,
+                    })
+                }).catch((error) => {
+                    throw Error(error);
+                })
                 oauth2Client.setCredentials(tokens);
-                fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(tokens));
+
 
                 res.writeHead(200);
                 res.end('Authentication successful! You can close this window.');
@@ -266,7 +268,6 @@ async function main() {
 
     if (process.argv[2] === 'auth') {
         await authenticate();
-        console.log('Authentication completed successfully');
         process.exit(0);
     }
 
